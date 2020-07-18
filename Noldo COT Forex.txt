@@ -1,0 +1,311 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Noldo
+
+//https://github.com/user-Noldo
+//MIT License
+
+//Copyright (c) 2020 user-Noldo
+
+//Permission is hereby granted, free of charge, to any person obtaining a copy
+//of this software and associated documentation files (the "Software"), to deal
+//in the Software without restriction, including without limitation the rights
+//to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//copies of the Software, and to permit persons to whom the Software is
+//furnished to do so, subject to the following conditions:
+
+//The above copyright notice and this permission notice shall be included in all
+//copies or substantial portions of the Software.
+
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+//AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+//SOFTWARE.
+
+
+//@version=4
+study("Noldo CFTC COT Forex Indicator")
+src = close 
+
+tickerValue (expression, tkr) => security(tkr, timeframe.period, expression)
+
+// Pivot Reversal Strategy
+
+leftBars = input(4)
+rightBars = input(2)
+
+swh = pivothigh(leftBars, rightBars)
+swl = pivotlow(leftBars, rightBars)
+
+swh_cond = not na(swh)
+
+hprice = 0.0
+hprice := swh_cond ? swh : hprice[1]
+
+le = false
+le := swh_cond ? true : (le[1] and high > hprice ? false : le[1])
+
+//if (le)
+
+
+swl_cond = not na(swl)
+
+lprice = 0.0
+lprice := swl_cond ? swl : lprice[1]
+
+
+se = false
+se := swl_cond ? true : (se[1] and low < lprice ? false : se[1])
+
+//if (se)
+
+trur = le and not se ? 1.00 : se and not le ? -1.00 : na
+//
+rup = trur ==  1 
+yup = trur == -1 
+//
+aw = barssince(rup)
+tw = barssince(yup)
+
+status_chg  = (aw > tw and aw[1] < tw[1]) or (aw < tw and aw[1] > tw[1])
+
+period = valuewhen(status_chg, bar_index, 0) - valuewhen(status_chg, bar_index, 1)
+
+// PANEL DATA 
+
+dxy = tickerValue(close, "TVC:DXY")
+
+// Currencies
+
+eur   = tickerValue(close, "CME:6E1!")
+gbp   = tickerValue(close, "CME:6B1!")
+cad   = tickerValue(close, "CME:6C1!")
+chf   = tickerValue(close, "CME:6S1!")
+aud   = tickerValue(close, "CME:6A1!")
+nzd   = tickerValue(close, "CME:6N1!")
+jpy   = 1 / (tickerValue(close, "OANDA:USDJPY"))
+
+//
+
+// COT COMMERCIAL POSITION CODES 
+
+code_eur   = "099741"
+code_gbp   = "096742" 
+code_cad   = "090741"
+code_chf   = "092741"
+code_aud   = "232741"
+code_nzd   = "112741"
+code_jpy   = "097741"
+
+bFX = false 
+
+//Can't set bFX as an input because plot and legend titles require literals
+// INPUTS
+
+sCalc  = "MARKETS"
+// ***** MARKET TYPES *****
+
+// Financial Markets (Commercial)
+
+bTotal = (sCalc == "MARKETS")
+sHead = "QUANDL:CFTC/"
+
+sLong = "_F_L_ALL|4"
+sShort = "_F_L_ALL|5"
+
+// Open Interests
+
+iWidth = 2
+sOi = "_F_L_ALL|0"
+
+// COT CFTC Auto Generation Codes 
+
+//Data functions
+dLong(asCode) =>  security(sHead + asCode + (sLong),   "W", close, lookahead=barmerge.lookahead_on)
+dShort(asCode) => security(sHead +asCode + (sShort),   "W", close, lookahead=barmerge.lookahead_on)
+
+// Open Interest Auto Generation Codes
+dOi(asCode) => security(sHead +asCode + (sOi),   "W", close, lookahead=barmerge.lookahead_on)
+
+// MAIN COT COMMERCIAL NET POSITION FUNCTION 
+
+
+pos_net(_code) => ((dShort(_code) - dLong(_code)) / (dLong(_code) + dShort(_code))) * 100 
+
+// MAIN OPEN INTEREST FUNCTION 
+
+oi_net(_code) => dOi(_code)
+
+
+// REVERSE COT COMMERCIAL POSITIONS 
+
+pos_eur = pos_net(code_eur)
+pos_gbp = pos_net(code_gbp)
+pos_cad = pos_net(code_cad)
+pos_chf = pos_net(code_chf)
+pos_aud = pos_net(code_aud)
+pos_nzd = pos_net(code_nzd)
+pos_jpy = pos_net(code_jpy)
+
+// OPEN INTERESTS 
+
+oi_eur = oi_net(code_eur)
+oi_gbp = oi_net(code_gbp)
+oi_cad = oi_net(code_cad)
+oi_chf = oi_net(code_chf)
+oi_aud = oi_net(code_aud)
+oi_nzd = oi_net(code_nzd)
+oi_jpy = oi_net(code_jpy)
+
+// RELATIVE FUNCTIONS 
+
+// PRICE CHG
+
+fun_chgpct (_src,_length) => 
+
+    ((_src - _src[_length]) / _src[_length]) * 100
+
+// POSITION CHG
+
+fun_chgpos (_src,_length) => 
+
+    (_src - _src[_length]) 
+
+// CHANGE PERCENTS 
+
+// General
+
+chg_eur   = fun_chgpct(eur,period)
+chg_gbp   = fun_chgpct(gbp,period)
+chg_cad   = fun_chgpct(cad,period)
+chg_chf   = fun_chgpct(chf,period)
+chg_aud   = fun_chgpct(aud,period)
+chg_nzd   = fun_chgpct(nzd,period)
+chg_jpy   = fun_chgpct(jpy,period)
+
+// COT COMMERCIAL POSITIONS' CHANGE
+
+chgpos_eur   = fun_chgpos(pos_eur,period)
+chgpos_gbp   = fun_chgpos(pos_gbp,period)
+chgpos_cad   = fun_chgpos(pos_cad,period)
+chgpos_chf   = fun_chgpos(pos_chf,period)
+chgpos_aud   = fun_chgpos(pos_aud,period)
+chgpos_nzd   = fun_chgpos(pos_nzd,period)
+chgpos_jpy   = fun_chgpos(pos_jpy,period)
+
+// OPEN INTERESTS PERCENT CHANGE 
+
+chgoi_eur   = fun_chgpct(pos_eur,period)
+chgoi_gbp   = fun_chgpct(pos_gbp,period)
+chgoi_cad   = fun_chgpct(pos_cad,period)
+chgoi_chf   = fun_chgpct(pos_chf,period)
+chgoi_aud   = fun_chgpct(pos_aud,period)
+chgoi_nzd   = fun_chgpct(pos_nzd,period)
+chgoi_jpy   = fun_chgpct(pos_jpy,period)
+
+// ---------------------------------------------------------------------------------------
+
+// Variables 
+
+bool show_labels = true
+
+            
+int spacing = input(20)
+int tdispl = round((time[0] - time[10]) / 10) * spacing
+
+// Modelization 
+
+string tf1  = ("EUR")
+string tf2  = ("GBP")
+string tf3  = ("CAD")
+string tf4  = ("CHF")
+string tf5  = ("AUD")
+string tf6  = ("NZD")
+string tf7  = ("JPY")
+
+_labelpos1 = max((chg_eur) , (chg_gbp))  
+_labelpos2 = max((chg_cad) ,(chg_chf))  
+_labelpos3 = max((chg_aud) ,(chg_nzd)) 
+
+_labelpos4 = max(_labelpos1 , _labelpos2)
+_labelpos5 = max(_labelpos3 , (chg_eur))
+_labelpos6 = max(_labelpos4 , _labelpos5)
+
+labelpos = _labelpos6 * 1.2
+
+f_draw(_c, _x, _label, _label_pos)=>
+    
+    var line _body = na
+    
+    col_col = _c > 0 ? color.navy : color.orange
+    
+    line.delete(_body)
+    
+    _body := line.new(
+             x1=_x, y1=0.00,
+             x2=_x, y2=_c,
+             xloc= xloc.bar_time, extend=extend.none, color=col_col, style=line.style_solid, width=18 
+             )
+    //
+    if show_labels
+        var label _la = na
+        label.delete(_la)
+        _la := label.new(
+                 x=_x, y=labelpos,
+                 text=_label,
+                 xloc=xloc.bar_time, yloc=yloc.price,
+                 color=color.yellow, style=label.style_labeldown, textcolor=color.black, size=size.small
+                 )
+    
+
+// Plot data
+
+f_draw(chg_eur   , time + tdispl * 1 , tf1 , labelpos)
+f_draw(chg_gbp   , time + tdispl * 2 , tf2 , labelpos)
+f_draw(chg_cad   , time + tdispl * 3 , tf3 , labelpos)
+f_draw(chg_chf   , time + tdispl * 4 , tf4 , labelpos)
+f_draw(chg_aud   , time + tdispl * 5 , tf5 , labelpos)
+f_draw(chg_nzd   , time + tdispl * 6 , tf6 , labelpos)
+f_draw(chg_jpy   , time + tdispl * 7 , tf7 , labelpos)
+
+// InfoPanel 
+
+disp_panels = true
+info_label_off = input(30, title="Info panel offset")
+info_label_size = input(size.normal, options=[size.tiny, size.small, size.normal, size.large, size.huge], title="Info panel label size")
+info_panel_x = time + tdispl * 10
+info_panel_y = labelpos/1.35
+
+// Info Panel Plotage
+
+info_title= "-=-=-=-=- NET POSITION CHANGE (%) -=-=-=-=-"
+info_div = "\n\n------------------------------"
+
+_st1  = "\n\ EUR (%)     : "       + tostring(chgpos_eur)      
+_st2  = "\n\ GBP (%)    : "         + tostring(chgpos_gbp)         
+_st3  = "\n\ CAD (%)     : "        + tostring(chgpos_cad)        
+_st4  = "\n\ CHF (%)     : "         + tostring(chgpos_chf)         
+_st5  = "\n\ AUD (%)      : "       + tostring(chgpos_aud)      
+_st6  = "\n\ NZD (%)      : "       + tostring(chgpos_nzd)   
+_st7  = "\n\ JPY (%)      : "       + tostring(chgpos_jpy)
+
+info_title2 = "-=-=-=-=- OPEN INTERESTS CHANGE (%) -=-=-=-=-"
+info_div2 = "\n\n"
+info_div3 = "\n\n------------------------------"
+
+_st8   = "\n\ EUR OI(%)     : "       + tostring(chgoi_eur)      
+_st9   = "\n\ GBP OI (%)    : "         + tostring(chgoi_gbp)         
+_st10   =  "\n\ CAD OI (%)     : "        + tostring(chgoi_cad)        
+_st11  =  "\n\ CHF OI (%)     : "         + tostring(chgoi_chf)         
+_st12  =  "\n\ AUD OI (%)      : "       + tostring(chgoi_aud)      
+_st13  = "\n\ NZD OI (%)      : "       + tostring(chgoi_nzd) 
+_st14  = "\n\ JPY OI (%)      : "       + tostring(chgoi_jpy)
+
+info_text = (info_title+info_div + _st1 + _st2 + _st3 + _st4 + _st5 + _st6 + _st7 + info_div2 + info_title2 + info_div3 + _st8 + _st9 + _st10 + _st11 + _st12 + _st13 + _st14 )     
+info_panel = disp_panels ? label.new(x=info_panel_x, y=info_panel_y, text=info_text, xloc=xloc.bar_time, yloc=yloc.price, color=#004040, style=label.style_labelup, textcolor=color.white, size=info_label_size) : na
+label.delete(info_panel[1])
+
+hline(0.0, color = color.red)
+
